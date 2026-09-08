@@ -1,0 +1,372 @@
+// Prisma Schema for Controle Financeiro Inteligente
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Bank {
+  id             String    @id @default(uuid())
+  name           String
+  type           String    @default("CHECKING") // CHECKING, SAVINGS, WALLET, INVESTMENT, OTHER
+  initialBalance Float     @default(0)
+  color          String    @default("#38bdf8")
+  icon           String    @default("Building2")
+  isArchived     Boolean   @default(false)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  incomes        Income[]
+  expenses       Expense[]
+  fixedExpenses  FixedExpense[]
+  creditCards    CreditCard[]
+}
+
+model Category {
+  id        String   @id @default(uuid())
+  name      String
+  type      String   // INCOME, EXPENSE, FIXED, DEBT, INVESTMENT
+  color     String   @default("#38bdf8")
+  icon      String   @default("Tag")
+  isCustom  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  subcategories Subcategory[]
+  incomes       Income[]
+  expenses      Expense[]
+  fixedExpenses FixedExpense[]
+  purchases     CreditCardPurchase[]
+  budgets       Budget[]
+}
+
+model Subcategory {
+  id         String   @id @default(uuid())
+  name       String
+  categoryId String
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model Income {
+  id            String    @id @default(uuid())
+  date          DateTime
+  month         String    // Janeiro, Fevereiro, etc.
+  year          Int
+  type          String    // Salário, PJ, Motoboy, Freelance, Reembolso, Venda, Investimentos, Outros
+  categoryId    String?
+  categoryName  String
+  description   String
+  amount        Float
+  status        String    @default("Recebido") // Recebido, Não recebido, Parcial, Cancelado
+  paymentMethod String    @default("Pix")      // Pix, Transferência, Dinheiro, Cartão, Outro
+  bankId        String?
+  bankName      String    @default("Nubank")
+  notes         String?
+  isRecurring   Boolean   @default(false)
+  recurringId   String?
+  deletedAt     DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  category      Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  bank          Bank?     @relation(fields: [bankId], references: [id], onDelete: SetNull)
+
+  @@index([month, year])
+  @@index([status])
+}
+
+model Expense {
+  id            String    @id @default(uuid())
+  date          DateTime
+  month         String    // Janeiro, Fevereiro, etc.
+  year          Int
+  type          String    // Despesa, Conta Fixa, Dívida, Poupança/Investimento
+  categoryId    String?
+  categoryName  String
+  description   String
+  amount        Float
+  status        String    @default("Pago") // Pago, A pagar, Parcial, Cancelado
+  paymentMethod String    @default("Pix")  // Pix, Transferência, Dinheiro, Cartão, Boleto, Débito Automático, Outro
+  bankId        String?
+  bankName      String    @default("Nubank")
+  notes         String?
+  isRecurring   Boolean   @default(false)
+  recurringId   String?
+  deletedAt     DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  category      Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  bank          Bank?     @relation(fields: [bankId], references: [id], onDelete: SetNull)
+
+  @@index([month, year])
+  @@index([status])
+  @@index([type])
+}
+
+model FixedExpense {
+  id            String    @id @default(uuid())
+  name          String
+  categoryId    String?
+  categoryName  String
+  amount        Float
+  dueDay        Int       // 1 - 31
+  bankId        String?
+  bankName      String    @default("Nubank")
+  paymentMethod String    @default("Pix")
+  frequency     String    @default("Mensal") // Mensal, Semanal, Anual, Personalizada
+  startDate     DateTime  @default(now())
+  endDate       DateTime?
+  isActive      Boolean   @default(true)
+  notes         String?
+  deletedAt     DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  category      Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  bank          Bank?     @relation(fields: [bankId], references: [id], onDelete: SetNull)
+}
+
+model CreditCard {
+  id             String    @id @default(uuid())
+  name           String
+  bankId         String?
+  bankName       String    @default("Nubank")
+  limitTotal     Float     @default(0)
+  limitAvailable Float     @default(0)
+  closingDay     Int       // Dia de fechamento da fatura
+  dueDay         Int       // Dia de vencimento da fatura
+  color          String    @default("#a855f7") // Roxo Nubank, Laranja Itaú, etc.
+  brand          String    @default("Mastercard") // Mastercard, Visa, Elo, etc.
+  isActive       Boolean   @default(true)
+  deletedAt      DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  bank           Bank?     @relation(fields: [bankId], references: [id], onDelete: SetNull)
+  purchases      CreditCardPurchase[]
+  invoices       CreditCardInvoice[]
+}
+
+model CreditCardPurchase {
+  id                 String    @id @default(uuid())
+  date               DateTime
+  cardId             String
+  categoryId         String?
+  categoryName       String
+  description        String
+  totalAmount        Float
+  totalInstallments  Int       @default(1)
+  currentInstallment Int       @default(1)
+  installmentAmount  Float
+  invoiceMonth       String    // Mês da primeira fatura
+  invoiceYear        Int
+  status             String    @default("Fatura Aberta") // Fatura Aberta, Fatura Fechada, Fatura Paga, Fatura Vencida
+  notes              String?
+  deletedAt          DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  card               CreditCard @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  category           Category?  @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  installments       CreditCardInstallment[]
+
+  @@index([cardId])
+}
+
+model CreditCardInstallment {
+  id                String    @id @default(uuid())
+  purchaseId        String
+  installmentNumber Int
+  totalInstallments Int
+  amount            Float
+  invoiceMonth      String    // Janeiro, Fevereiro, etc.
+  invoiceYear       Int
+  dueDate           DateTime
+  status            String    @default("Fatura Aberta") // Fatura Aberta, Fatura Fechada, Fatura Paga, Fatura Vencida
+  notes             String?
+  deletedAt         DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  purchase          CreditCardPurchase @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+
+  @@index([invoiceMonth, invoiceYear])
+  @@index([status])
+}
+
+model CreditCardInvoice {
+  id          String    @id @default(uuid())
+  cardId      String
+  month       String
+  year        Int
+  totalAmount Float     @default(0)
+  status      String    @default("Fatura Aberta") // Fatura Aberta, Fatura Fechada, Fatura Paga, Fatura Vencida
+  closingDate DateTime
+  dueDate     DateTime
+  paidDate    DateTime?
+  paidAmount  Float?
+  notes       String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  card        CreditCard @relation(fields: [cardId], references: [id], onDelete: Cascade)
+
+  @@unique([cardId, month, year])
+}
+
+model Debt {
+  id                 String    @id @default(uuid())
+  name               String
+  creditor           String
+  originalAmount     Float
+  currentAmount      Float
+  paidAmount         Float     @default(0)
+  remainingAmount    Float
+  totalInstallments  Int       @default(1)
+  currentInstallment Int       @default(0)
+  installmentAmount  Float     @default(0)
+  interestRate       Float     @default(0)
+  startDate          DateTime  @default(now())
+  dueDate            DateTime?
+  status             String    @default("Ativa") // Ativa, Paga, Renegociada, Atrasada
+  notes              String?
+  deletedAt          DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  payments           DebtPayment[]
+}
+
+model DebtPayment {
+  id                String   @id @default(uuid())
+  debtId            String
+  date              DateTime @default(now())
+  amount            Float
+  installmentNumber Int?
+  bankId            String?
+  paymentMethod     String   @default("Pix")
+  notes             String?
+  createdAt         DateTime @default(now())
+
+  debt              Debt     @relation(fields: [debtId], references: [id], onDelete: Cascade)
+}
+
+model Investment {
+  id              String    @id @default(uuid())
+  name            String
+  type            String    // Poupança, CDB, Tesouro Direto, Ações, FIIs, Cripto, Reserva de emergência, Outros
+  institution     String    // Nubank, Inter, XP, Binance, etc.
+  appliedAmount   Float     @default(0)
+  currentAmount   Float     @default(0)
+  yieldRate       Float     @default(0)
+  yieldAmount     Float     @default(0)
+  startDate       DateTime  @default(now())
+  notes           String?
+  isEmergencyFund Boolean   @default(false)
+  deletedAt       DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  transactions    InvestmentTransaction[]
+}
+
+model InvestmentTransaction {
+  id           String     @id @default(uuid())
+  investmentId String
+  type         String     // Aporte, Resgate, Rendimento
+  date         DateTime   @default(now())
+  amount       Float
+  notes        String?
+  createdAt    DateTime   @default(now())
+
+  investment   Investment @relation(fields: [investmentId], references: [id], onDelete: Cascade)
+}
+
+model FinancialGoal {
+  id           String    @id @default(uuid())
+  name         String
+  category     String    @default("Geral")
+  targetAmount Float
+  currentAmount Float    @default(0)
+  deadline     DateTime?
+  color        String    @default("#38bdf8")
+  icon         String    @default("Target")
+  notes        String?
+  deletedAt    DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+}
+
+model Budget {
+  id            String    @id @default(uuid())
+  categoryId    String?
+  categoryName  String
+  dimension     String    @default("Despesa") // Renda, Despesa, Conta Fixa, Dívida, Investimento
+  year          Int
+  month         String?   // null para orçamento anual, ou nome do mês para mensal
+  plannedAmount Float     @default(0)
+  actualAmount  Float     @default(0)
+  notes         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  category      Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+
+  @@index([year, month])
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  entity    String   // Income, Expense, Card, Debt, etc.
+  entityId  String
+  action    String   // CREATE, UPDATE, DELETE
+  details   String   // JSON payload or summary description
+  createdAt DateTime @default(now())
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  title     String
+  message   String
+  type      String   @default("info") // info, warning, alert, success
+  isRead    Boolean  @default(false)
+  link      String?
+  createdAt DateTime @default(now())
+}
+
+model Setting {
+  id          String   @id @default(uuid())
+  key         String   @unique
+  value       String
+  description String?
+  updatedAt   DateTime @updatedAt
+}
+
+model Asset {
+  id             String    @id @default(uuid())
+  name           String    // Ex: Kawasaki Ninja ZX-10R, Apartamento Centro, MacBook Pro M3
+  type           String    // VEICULO, IMOVEL, ELETRONICO, EQUIPAMENTO, OUTRO
+  category       String    // Veículo, Imóvel, Eletrônico, Equipamento, Outro
+  estimatedValue Float     // Valor de Mercado Atual
+  purchaseValue  Float?    // Valor de Aquisição Original
+  purchaseDate   DateTime? // Data de Compra
+  brand          String?   // Kawasaki, Apple, Dell, etc.
+  modelYear      Int?      // Ano do modelo (ex: 2024)
+  color          String    @default("#38bdf8")
+  icon           String    @default("Car") // Car, Building, Laptop, Smartphone, Tv, Box
+  notes          String?   // Placa, KM, número de série, especificações
+  deletedAt      DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([category])
+  @@index([type])
+}
+

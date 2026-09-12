@@ -2,7 +2,7 @@
 
 # 1. Base Image com dependências do sistema necessárias para Prisma no Alpine
 FROM node:20-alpine AS base
-RUN apk add --no-cache libc6-compat openssl
+RUN apk add --no-cache libc6-compat openssl sqlite
 
 WORKDIR /app
 

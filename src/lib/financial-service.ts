@@ -702,7 +702,7 @@ export class FinancialService {
       incomeTotal: Math.round(totalIncome * 100) / 100,
       expensesPaid: Math.round(expensesPaid * 100) / 100,
       expensesPending: Math.round(expensesPending * 100) / 100,
-      expensesTotal: Math.round(totalExpenses * 100) / 100,
+      expensesTotal: Math.round((expensesPaid + expensesPending) * 100) / 100,
       fixedPaid: Math.round(fixedPaid * 100) / 100,
       fixedPending: Math.round(fixedPending * 100) / 100,
       fixedTotal: Math.round((fixedPaid + fixedPending) * 100) / 100,

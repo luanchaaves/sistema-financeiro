@@ -153,6 +153,11 @@ describe('FinancialService Core Engine', () => {
       selectedMonth: 'Outubro',
     });
 
+    // Expenses (Variáveis) = 510.00
+    expect(summary.metrics.expensesTotal).toBe(510.00);
+    expect(summary.metrics.expensesPaid).toBe(0.00);
+    expect(summary.metrics.expensesPending).toBe(510.00);
+
     // 1315 + 100 + 1650 + 217 + 1588 = 4870.00
     expect(summary.metrics.fixedTotal).toBe(4870.00);
     expect(summary.metrics.fixedPaid).toBe(0.00);

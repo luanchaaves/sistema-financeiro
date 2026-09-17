@@ -13,9 +13,10 @@ export async function GET(request: NextRequest) {
     const selectedYear = yearParam && yearParam !== 'TODOS' ? parseInt(yearParam, 10) : undefined;
     const selectedMonth = monthParam && monthParam !== 'TODOS' ? monthParam : undefined;
 
-    const [incomes, expenses, installments, banks, debts, investments, budgets, assets] = await Promise.all([
+    const [incomes, expenses, fixedExpenses, installments, banks, debts, investments, budgets, assets] = await Promise.all([
       prisma.income.findMany({ where: { deletedAt: null } }),
       prisma.expense.findMany({ where: { deletedAt: null } }),
+      prisma.fixedExpense.findMany({ where: { deletedAt: null, isActive: true } }),
       prisma.creditCardInstallment.findMany({
         where: { deletedAt: null },
         include: {
@@ -36,6 +37,7 @@ export async function GET(request: NextRequest) {
     const summary = FinancialService.computeDashboard({
       incomes,
       expenses,
+      fixedExpenses,
       installments,
       banks,
       debts,

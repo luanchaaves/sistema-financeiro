@@ -107,12 +107,12 @@ describe('FinancialService Core Engine', () => {
       expenses: [],
       installments: [],
       banks: [{ id: '1', name: 'Nubank', initialBalance: 3000 }],
-      debts: [{ id: '1', name: 'Financiamento Veicular', creditor: 'Banco', originalAmount: 85000, remainingAmount: 68000, paidAmount: 17000, status: 'Ativa' }],
+      debts: [{ id: '1', name: 'Financiamento Ninja ZX-10R', creditor: 'Banco', originalAmount: 85000, remainingAmount: 68000, paidAmount: 17000, status: 'Ativa' }],
       investments: [{ id: '1', name: 'Tesouro Selic', type: 'Renda Fixa', institution: 'Nubank', appliedAmount: 2000, currentAmount: 2100, isEmergencyFund: true }],
       budgets: [],
       assets: [
-        { id: '1', name: 'Veículo Sedan 2023', type: 'VEICULO', category: 'Veículo', estimatedValue: 85000 },
-        { id: '2', name: 'Notebook Pro 16', type: 'ELETRONICO', category: 'Eletrônico', estimatedValue: 15000 },
+        { id: '1', name: 'Kawasaki Ninja ZX-10R', type: 'VEICULO', category: 'Veículo', estimatedValue: 85000 },
+        { id: '2', name: 'MacBook Pro M3', type: 'ELETRONICO', category: 'Eletrônico', estimatedValue: 15000 },
       ],
       selectedYear: 2026,
     });
@@ -124,6 +124,50 @@ describe('FinancialService Core Engine', () => {
     expect(summary.netWorth.totalAssets).toBe(105100);
     expect(summary.netWorth.totalLiabilities).toBe(68000);
     expect(summary.netWorth.netWorth).toBe(37100);
+  });
+
+  it('automatically projects active recurring fixed expenses into dashboard metrics and projected balance', () => {
+    const summary = FinancialService.computeDashboard({
+      incomes: [
+        { id: '1', description: 'Salário', amount: 8336, status: 'Recebido', categoryName: 'Salário', year: 2026, month: 'Outubro' }
+      ],
+      expenses: [
+        { id: '1', description: 'Supermercado', amount: 510, status: 'A pagar', type: 'Despesa', categoryName: 'Alimentação', year: 2026, month: 'Outubro' }
+      ],
+      fixedExpenses: [
+        { id: '1', name: 'Faculdade FIAP', amount: 1315, dueDay: 1, categoryName: 'Faculdade', isActive: true },
+        { id: '2', name: 'Internet Fibra', amount: 100, dueDay: 10, categoryName: 'Internet', isActive: true },
+        { id: '3', name: 'Parcela Ninja', amount: 1650, dueDay: 10, categoryName: 'Parcelas', isActive: true },
+        { id: '4', name: 'Seguro Moto', amount: 217, dueDay: 20, categoryName: 'Seguro', isActive: true },
+        { id: '5', name: 'Aluguel', amount: 1588, dueDay: 25, categoryName: 'Moradia', isActive: true }
+      ],
+      installments: [
+        { id: '1', purchaseId: 'p1', amount: 2373.68, invoiceYear: 2026, invoiceMonth: 'Outubro', dueDate: '2026-10-10', status: 'Fatura Aberta', installmentNumber: 1, totalInstallments: 1 }
+      ],
+      banks: [{ id: '1', name: 'Nubank', initialBalance: 0 }],
+      debts: [],
+      investments: [],
+      budgets: [],
+      assets: [],
+      selectedYear: 2026,
+      selectedMonth: 'Outubro',
+    });
+
+    // 1315 + 100 + 1650 + 217 + 1588 = 4870.00
+    expect(summary.metrics.fixedTotal).toBe(4870.00);
+    expect(summary.metrics.fixedPaid).toBe(0.00);
+    expect(summary.metrics.fixedPending).toBe(4870.00);
+
+    // Available balance = Initial (0) + Income (8336) = 8336
+    expect(summary.metrics.availableBalance).toBe(8336.00);
+
+    // Projected balance = 8336 - 510 (expense) - 4870 (fixed) - 2373.68 (card) = 582.32
+    expect(summary.metrics.projectedBalance).toBe(582.32);
+
+    // Check that categories were created for unprojected rules
+    const aluguelCat = summary.categoryDistribution.find(c => c.category === 'Moradia');
+    expect(aluguelCat).toBeDefined();
+    expect(aluguelCat?.totalPending).toBe(1588);
   });
 });
 

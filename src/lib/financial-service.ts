@@ -107,6 +107,21 @@ export interface RawAsset {
   deletedAt?: Date | string | null;
 }
 
+export interface RawFixedExpense {
+  id: string;
+  name: string;
+  categoryId?: string | null;
+  categoryName: string;
+  amount: number;
+  dueDay: number;
+  bankId?: string | null;
+  bankName?: string;
+  paymentMethod?: string;
+  frequency?: string;
+  isActive?: boolean;
+  deletedAt?: Date | string | null;
+}
+
 export class FinancialService {
   /**
    * Calculates real available balance right now
@@ -265,6 +280,7 @@ export class FinancialService {
   static computeDashboard(params: {
     incomes: RawIncome[];
     expenses: RawExpense[];
+    fixedExpenses?: RawFixedExpense[];
     installments: RawCardInstallment[];
     banks: RawBank[];
     debts: RawDebt[];
@@ -277,6 +293,7 @@ export class FinancialService {
     const {
       incomes,
       expenses,
+      fixedExpenses = [],
       installments,
       banks,
       debts,
@@ -286,6 +303,9 @@ export class FinancialService {
       selectedYear,
       selectedMonth,
     } = params;
+
+    const targetYear = selectedYear || new Date().getFullYear();
+    const activeFixedRules = fixedExpenses.filter((f) => f.isActive !== false && !f.deletedAt);
 
     // Filter datasets by year and month
     const filterRecord = (item: { year?: number; month?: string; invoiceYear?: number; invoiceMonth?: string }) => {
@@ -339,6 +359,54 @@ export class FinancialService {
         else if (isPending) expensesPending += exp.amount;
       }
     });
+
+    // Projeção Automática de Contas Fixas Ativas:
+    // Se a regra de conta fixa ainda não possui lançamento correspondente no mês, projeta automaticamente como pendente
+    const unprojectedRules: RawFixedExpense[] = [];
+    if (selectedMonth && selectedMonth !== 'TODOS') {
+      activeFixedRules.forEach((rule) => {
+        const isCovered = filteredExpenses.some((exp) => {
+          if (exp.type !== 'Conta Fixa') return false;
+          const expDesc = (exp.description || '').toLowerCase().trim();
+          const ruleName = (rule.name || '').toLowerCase().trim();
+          const expCat = (exp.categoryName || '').toLowerCase().trim();
+          const ruleCat = (rule.categoryName || '').toLowerCase().trim();
+
+          return (
+            (expDesc && ruleName && (expDesc === ruleName || expDesc.includes(ruleName) || ruleName.includes(expDesc))) ||
+            (expCat && ruleCat && expCat === ruleCat)
+          );
+        });
+
+        if (!isCovered) {
+          fixedPending += rule.amount;
+          unprojectedRules.push(rule);
+        }
+      });
+    } else {
+      // Visão Anual (TODOS): projeta para os meses que ainda não têm lançamento de conta fixa
+      MONTHS.forEach((m) => {
+        const mExpenses = expenses.filter((e) => e.year === targetYear && e.month === m);
+        activeFixedRules.forEach((rule) => {
+          const isCovered = mExpenses.some((exp) => {
+            if (exp.type !== 'Conta Fixa') return false;
+            const expDesc = (exp.description || '').toLowerCase().trim();
+            const ruleName = (rule.name || '').toLowerCase().trim();
+            const expCat = (exp.categoryName || '').toLowerCase().trim();
+            const ruleCat = (rule.categoryName || '').toLowerCase().trim();
+
+            return (
+              (expDesc && ruleName && (expDesc === ruleName || expDesc.includes(ruleName) || ruleName.includes(expDesc))) ||
+              (expCat && ruleCat && expCat === ruleCat)
+            );
+          });
+
+          if (!isCovered) {
+            fixedPending += rule.amount;
+          }
+        });
+      });
+    }
 
     const totalExpenses = expensesPaid + expensesPending + fixedPaid + fixedPending + debtPaid + debtPending;
 
@@ -445,7 +513,6 @@ export class FinancialService {
     );
 
     // Monthly Consolidated Matrix (Jan..Dez) for the target year
-    const targetYear = selectedYear || new Date().getFullYear();
     const monthlyConsolidated = MONTHS.map((m) => {
       const mIncomes = incomes.filter((i) => i.year === targetYear && i.month === m);
       const mExpenses = expenses.filter((e) => e.year === targetYear && e.month === m);
@@ -457,6 +524,7 @@ export class FinancialService {
 
       let expReal = 0;
       let fixReal = 0;
+      let fixPending = 0;
       let dbtReal = 0;
       let savReal = 0;
       let expPending = 0;
@@ -468,7 +536,27 @@ export class FinancialService {
           else if (e.type === 'Poupança/Investimento') savReal += e.amount;
           else expReal += e.amount;
         } else {
-          expPending += e.amount;
+          if (e.type === 'Conta Fixa') fixPending += e.amount;
+          else expPending += e.amount;
+        }
+      });
+
+      activeFixedRules.forEach((rule) => {
+        const isCovered = mExpenses.some((exp) => {
+          if (exp.type !== 'Conta Fixa') return false;
+          const expDesc = (exp.description || '').toLowerCase().trim();
+          const ruleName = (rule.name || '').toLowerCase().trim();
+          const expCat = (exp.categoryName || '').toLowerCase().trim();
+          const ruleCat = (rule.categoryName || '').toLowerCase().trim();
+
+          return (
+            (expDesc && ruleName && (expDesc === ruleName || expDesc.includes(ruleName) || ruleName.includes(expDesc))) ||
+            (expCat && ruleCat && expCat === ruleCat)
+          );
+        });
+
+        if (!isCovered) {
+          fixPending += rule.amount;
         }
       });
 
@@ -477,12 +565,13 @@ export class FinancialService {
       const totalOutReal = expReal + fixReal + totalDebtReal + savReal;
       const balReal = incReal - totalOutReal;
 
-      const expPlanned = totalOutReal + expPending;
+      const fixPlanned = fixReal + fixPending;
+      const expPlanned = expReal + expPending + fixPlanned + totalDebtReal + savReal;
       const balProjected = incPlanned - expPlanned;
       const savRate = incReal > 0 ? ((incReal - (expReal + fixReal + totalDebtReal)) / incReal) * 100 : 0;
 
       let status = 'Sem Lançamentos';
-      if (incReal > 0 || totalOutReal > 0) {
+      if (incReal > 0 || totalOutReal > 0 || incPlanned > 0 || expPlanned > 0) {
         status = balReal >= 0 ? 'Superávit' : 'Déficit';
       }
 
@@ -492,6 +581,7 @@ export class FinancialService {
         savingsReal: Math.round(savReal * 100) / 100,
         expensesReal: Math.round(expReal * 100) / 100,
         fixedReal: Math.round(fixReal * 100) / 100,
+        fixedPlanned: Math.round(fixPlanned * 100) / 100,
         debtReal: Math.round(totalDebtReal * 100) / 100,
         balanceReal: Math.round(balReal * 100) / 100,
         incomePlanned: Math.round(incPlanned * 100) / 100,
@@ -542,6 +632,14 @@ export class FinancialService {
       catMap.set(key, existing);
     });
 
+    // Add unprojected active fixed expenses to category distribution
+    unprojectedRules.forEach((rule) => {
+      const key = rule.categoryName || rule.name || 'Contas Fixas';
+      const existing = catMap.get(key) || { type: 'Conta Fixa', paid: 0, pending: 0 };
+      existing.pending += rule.amount;
+      catMap.set(key, existing);
+    });
+
     // Add credit card purchases to categorized distribution
     filteredInstallments.forEach((ins) => {
       const cat = ins.purchase?.categoryName || 'Cartão Nubank';
@@ -551,7 +649,7 @@ export class FinancialService {
       catMap.set(cat, existing);
     });
 
-    const totalSpendCategory = Array.from(catMap.values()).reduce((sum, v) => sum + v.paid, 0);
+    const totalSpendCategory = Array.from(catMap.values()).reduce((sum, v) => sum + (v.paid > 0 ? v.paid : v.pending), 0);
     const categoryColors = [
       '#38bdf8', '#a855f7', '#f43f5e', '#10b981', '#f59e0b',
       '#6366f1', '#ec4899', '#14b8a6', '#8b5cf6', '#eab308'
@@ -560,7 +658,9 @@ export class FinancialService {
     let colorIdx = 0;
     const categoryDistribution = Array.from(catMap.entries())
       .map(([catName, data]) => {
-        const pct = totalSpendCategory > 0 ? (data.paid / totalSpendCategory) * 100 : 0;
+        const displayAmount = data.paid > 0 ? data.paid : data.pending;
+        const totalBase = totalSpendCategory > 0 ? totalSpendCategory : 1;
+        const pct = (displayAmount / totalBase) * 100;
         const col = categoryColors[colorIdx % categoryColors.length];
         colorIdx++;
         return {
@@ -568,13 +668,13 @@ export class FinancialService {
           type: data.type,
           totalPaid: Math.round(data.paid * 100) / 100,
           totalPending: Math.round(data.pending * 100) / 100,
-          amount: Math.round(data.paid * 100) / 100,
+          amount: Math.round(displayAmount * 100) / 100,
           percentage: Math.round(pct * 10) / 10,
           percentageOfTotal: Math.round(pct * 10) / 10,
           color: col,
         };
       })
-      .sort((a, b) => b.totalPaid - a.totalPaid);
+      .sort((a, b) => b.amount - a.amount);
 
     // Net Worth (Ativos - Passivos)
     const physicalAssetsTotal = (assets || [])
@@ -587,13 +687,13 @@ export class FinancialService {
 
     const monthlyMatrix = monthlyConsolidated.map((m) => ({
       month: m.month,
-      incomes: m.incomeReal,
+      incomes: m.incomeReal > 0 ? m.incomeReal : m.incomePlanned,
       expenses: m.expensesReal,
-      fixedExpenses: m.fixedReal,
+      fixedExpenses: m.fixedReal > 0 ? m.fixedReal : (m.fixedPlanned || m.fixedReal),
       debts: m.debtReal,
       investments: m.savingsReal,
-      totalExpenses: m.expensesReal + m.fixedReal + m.debtReal + m.savingsReal,
-      balance: m.balanceReal,
+      totalExpenses: (m.expensesReal > 0 ? m.expensesReal : 0) + (m.fixedReal > 0 ? m.fixedReal : (m.fixedPlanned || 0)) + m.debtReal + m.savingsReal,
+      balance: (m.incomeReal > 0 ? m.incomeReal : m.incomePlanned) - ((m.expensesReal > 0 ? m.expensesReal : 0) + (m.fixedReal > 0 ? m.fixedReal : (m.fixedPlanned || 0)) + m.debtReal + m.savingsReal),
     }));
 
     const metrics = {

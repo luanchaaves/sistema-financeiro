@@ -30,6 +30,7 @@ export interface RawExpense {
   paymentMethod: string;
   bankId?: string | null;
   bankName: string;
+  recurringId?: string | null;
 }
 
 export interface RawCardInstallment {
@@ -373,6 +374,7 @@ export class FinancialService {
           const ruleCat = (rule.categoryName || '').toLowerCase().trim();
 
           return (
+            (exp.recurringId && exp.recurringId === rule.id) ||
             (expDesc && ruleName && (expDesc === ruleName || expDesc.includes(ruleName) || ruleName.includes(expDesc))) ||
             (expCat && ruleCat && expCat === ruleCat)
           );
@@ -396,6 +398,7 @@ export class FinancialService {
             const ruleCat = (rule.categoryName || '').toLowerCase().trim();
 
             return (
+              (exp.recurringId && exp.recurringId === rule.id) ||
               (expDesc && ruleName && (expDesc === ruleName || expDesc.includes(ruleName) || ruleName.includes(expDesc))) ||
               (expCat && ruleCat && expCat === ruleCat)
             );
@@ -550,6 +553,7 @@ export class FinancialService {
           const ruleCat = (rule.categoryName || '').toLowerCase().trim();
 
           return (
+            (exp.recurringId && exp.recurringId === rule.id) ||
             (expDesc && ruleName && (expDesc === ruleName || expDesc.includes(ruleName) || ruleName.includes(expDesc))) ||
             (expCat && ruleCat && expCat === ruleCat)
           );

@@ -1,13 +1,57 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const { searchParams } = new URL(request.url);
+    const month = searchParams.get('month');
+    const yearParam = searchParams.get('year');
+    const year = yearParam && yearParam !== 'TODOS' ? parseInt(yearParam, 10) : undefined;
+
     const fixed = await prisma.fixedExpense.findMany({
       where: { deletedAt: null },
       include: { category: true, bank: true },
       orderBy: { dueDay: 'asc' },
     });
+
+    if (month && month !== 'TODOS' && year) {
+      const monthlyExpenses = await prisma.expense.findMany({
+        where: {
+          deletedAt: null,
+          month,
+          year,
+          type: 'Conta Fixa',
+        },
+      });
+
+      const fixedWithStatus = fixed.map((item) => {
+        const matchingExp = monthlyExpenses.find(
+          (e) =>
+            e.recurringId === item.id ||
+            e.description.toLowerCase().trim() === item.name.toLowerCase().trim() ||
+            (e.categoryName.toLowerCase().trim() === item.categoryName.toLowerCase().trim())
+        );
+
+        return {
+          ...item,
+          monthlyPayment: matchingExp
+            ? {
+                isPaid: matchingExp.status === 'Pago',
+                status: matchingExp.status,
+                expenseId: matchingExp.id,
+                paidAmount: matchingExp.amount,
+                date: matchingExp.date,
+              }
+            : {
+                isPaid: false,
+                status: 'A pagar',
+              },
+        };
+      });
+
+      return NextResponse.json(fixedWithStatus);
+    }
+
     return NextResponse.json(fixed);
   } catch (error) {
     return NextResponse.json({ error: 'Erro ao buscar contas fixas' }, { status: 500 });

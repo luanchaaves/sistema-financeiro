@@ -174,5 +174,44 @@ describe('FinancialService Core Engine', () => {
     expect(aluguelCat).toBeDefined();
     expect(aluguelCat?.totalPending).toBe(1588);
   });
+
+  it('correctly tracks fixed expenses when one is marked as Paid for the month', () => {
+    const summary = FinancialService.computeDashboard({
+      incomes: [
+        { id: '1', description: 'Salário', amount: 8336, status: 'Recebido', categoryName: 'Salário', year: 2026, month: 'Outubro' }
+      ],
+      expenses: [
+        { id: 'e1', description: 'Faculdade FIAP', amount: 1315, status: 'Pago', type: 'Conta Fixa', categoryName: 'Faculdade', year: 2026, month: 'Outubro', recurringId: 'f1' }
+      ],
+      fixedExpenses: [
+        { id: 'f1', name: 'Faculdade FIAP', amount: 1315, dueDay: 1, categoryName: 'Faculdade', isActive: true },
+        { id: 'f2', name: 'Internet Fibra', amount: 100, dueDay: 10, categoryName: 'Internet', isActive: true },
+        { id: 'f3', name: 'Parcela Ninja', amount: 1650, dueDay: 10, categoryName: 'Parcelas', isActive: true },
+        { id: 'f4', name: 'Seguro Moto', amount: 217, dueDay: 20, categoryName: 'Seguro', isActive: true },
+        { id: 'f5', name: 'Aluguel', amount: 1588, dueDay: 25, categoryName: 'Moradia', isActive: true }
+      ],
+      installments: [],
+      banks: [{ id: '1', name: 'Nubank', initialBalance: 0 }],
+      debts: [],
+      investments: [],
+      budgets: [],
+      assets: [],
+      selectedYear: 2026,
+      selectedMonth: 'Outubro',
+    });
+
+    // Total fixed = 4870.00
+    expect(summary.metrics.fixedTotal).toBe(4870.00);
+    // Paid in month = 1315.00
+    expect(summary.metrics.fixedPaid).toBe(1315.00);
+    // Remaining pending = 3555.00
+    expect(summary.metrics.fixedPending).toBe(3555.00);
+
+    // Available balance = 8336 (income received) - 1315 (paid) = 7021.00
+    expect(summary.metrics.availableBalance).toBe(7021.00);
+
+    // Projected balance = 8336 - 4870 = 3466.00
+    expect(summary.metrics.projectedBalance).toBe(3466.00);
+  });
 });
 

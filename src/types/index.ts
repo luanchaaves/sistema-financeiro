@@ -102,6 +102,13 @@ export interface FixedExpenseItem {
   endDate?: string | null;
   isActive: boolean;
   notes?: string | null;
+  monthlyPayment?: {
+    isPaid: boolean;
+    status: string;
+    expenseId?: string;
+    paidAmount?: number;
+    date?: string | Date;
+  };
 }
 export type FixedExpense = FixedExpenseItem;
 

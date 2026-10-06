@@ -304,6 +304,8 @@ export interface DashboardSummary {
     availableBalance: number;
     projectedBalance: number;
     creditCardInvoicesOpen: number;
+    creditCardInvoicesPaid?: number;
+    creditCardInvoicesTotal?: number;
     savingsRate: number;
     commitmentRate: number;
   };

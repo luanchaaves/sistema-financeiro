@@ -213,5 +213,86 @@ describe('FinancialService Core Engine', () => {
     // Projected balance = 8336 - 4870 = 3466.00
     expect(summary.metrics.projectedBalance).toBe(3466.00);
   });
+
+  it('correctly tracks credit card invoices when marked as Paid vs Open without breaking balance', () => {
+    const summary = FinancialService.computeDashboard({
+      incomes: [
+        { id: '1', description: 'Salário', amount: 8336, status: 'Recebido', categoryName: 'Salário', year: 2026, month: 'Outubro' }
+      ],
+      expenses: [
+        { id: 'e1', description: 'Mercado', amount: 510, status: 'A pagar', type: 'Despesa', categoryName: 'Alimentação', year: 2026, month: 'Outubro' }
+      ],
+      fixedExpenses: [
+        { id: 'f1', name: 'Faculdade FIAP', amount: 1315, dueDay: 1, categoryName: 'Faculdade', isActive: true },
+        { id: 'f2', name: 'Internet Fibra', amount: 100, dueDay: 10, categoryName: 'Internet', isActive: true },
+        { id: 'f3', name: 'Parcela Ninja', amount: 1650, dueDay: 10, categoryName: 'Parcelas', isActive: true },
+        { id: 'f4', name: 'Seguro Moto', amount: 217, dueDay: 20, categoryName: 'Seguro', isActive: true },
+        { id: 'f5', name: 'Aluguel', amount: 1588, dueDay: 25, categoryName: 'Moradia', isActive: true }
+      ],
+      installments: [
+        {
+          id: 'inst-1',
+          purchaseId: 'p1',
+          amount: 2927.38,
+          invoiceYear: 2026,
+          invoiceMonth: 'Outubro',
+          dueDate: '2026-10-10',
+          status: 'Fatura Paga',
+          installmentNumber: 1,
+          totalInstallments: 1,
+          purchase: {
+            cardId: 'card-nubank',
+            description: 'Nubank Fatura',
+            categoryName: 'Diversos',
+            card: { name: 'Nubank', bankName: 'Nubank' }
+          }
+        },
+        {
+          id: 'inst-2',
+          purchaseId: 'p2',
+          amount: 903.00,
+          invoiceYear: 2026,
+          invoiceMonth: 'Outubro',
+          dueDate: '2026-10-20',
+          status: 'Fatura Aberta',
+          installmentNumber: 1,
+          totalInstallments: 1,
+          purchase: {
+            cardId: 'card-itau',
+            description: 'Itaú Fatura',
+            categoryName: 'Veículo',
+            card: { name: 'Itaú', bankName: 'Itaú' }
+          }
+        }
+      ],
+      banks: [{ id: '1', name: 'Nubank', initialBalance: 0 }],
+      debts: [],
+      investments: [],
+      budgets: [],
+      assets: [],
+      selectedYear: 2026,
+      selectedMonth: 'Outubro',
+    });
+
+    // Credit cards breakdown
+    expect(summary.metrics.creditCardInvoicesOpen).toBe(903.00);
+    expect(summary.metrics.creditCardInvoicesPaid).toBe(2927.38);
+    expect(summary.metrics.creditCardInvoicesTotal).toBe(3830.38);
+
+    // Available balance = 8336 (income) - 2927.38 (card paid from bank) = 5408.62
+    expect(summary.metrics.availableBalance).toBe(5408.62);
+
+    // Projected balance = 5408.62 (available) - 510 (expense) - 4870 (fixed) - 903 (open card) = -874.38
+    expect(summary.metrics.projectedBalance).toBe(-874.38);
+
+    // Category distribution should include both paid and pending purchases
+    const veiculoCat = summary.categoryDistribution.find(c => c.category === 'Veículo');
+    expect(veiculoCat).toBeDefined();
+    expect(veiculoCat?.amount).toBe(903.00);
+
+    const diversosCat = summary.categoryDistribution.find(c => c.category === 'Diversos');
+    expect(diversosCat).toBeDefined();
+    expect(diversosCat?.amount).toBe(2927.38);
+  });
 });
 

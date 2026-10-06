@@ -315,9 +315,10 @@ export default function DashboardPage() {
             </div>
           </div>
           <p className="text-lg font-black text-white">{formatCurrency(metrics.creditCardInvoicesOpen)}</p>
-          <p className="text-[11px] text-slate-400 mt-2 pt-2 border-t border-navy-800">
-            Em aberto no mês
-          </p>
+          <div className="flex items-center justify-between text-[11px] text-slate-400 mt-2 pt-2 border-t border-navy-800">
+            <span>Pagas:</span>
+            <span className="text-purple-400 font-semibold">{formatCurrency(metrics.creditCardInvoicesPaid || 0)}</span>
+          </div>
         </div>
 
         {/* Reserva de Emergência Total */}

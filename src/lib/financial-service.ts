@@ -134,12 +134,13 @@ export class FinancialService {
     expensesPaid: number,
     fixedPaid: number,
     debtsPaid: number,
-    investmentsTotal: number
+    investmentsTotal: number,
+    creditCardPaid: number = 0
   ): number {
     const raw =
       initialBankBalances +
       incomesReceived -
-      (expensesPaid + fixedPaid + debtsPaid + investmentsTotal);
+      (expensesPaid + fixedPaid + debtsPaid + investmentsTotal + creditCardPaid);
     return Math.round(raw * 100) / 100;
   }
 
@@ -464,14 +465,25 @@ export class FinancialService {
         .filter((exp) => (exp.bankId === b.id || exp.bankName === b.name) && exp.status === 'Pago')
         .reduce((sum, exp) => sum + exp.amount, 0);
 
-      const currentBalance = Math.round((b.initialBalance + bankIncomes - bankExpenses) * 100) / 100;
+      // Calculate total credit card payments paid from this bank
+      const bankCardPayments = filteredInstallments
+        .filter(
+          (ins) =>
+            ins.status === 'Fatura Paga' &&
+            (ins.purchase?.card?.bankId === b.id ||
+              ins.purchase?.card?.bankName === b.name ||
+              (ins.purchase?.card?.name && ins.purchase.card.name.toLowerCase().includes(b.name.toLowerCase())))
+        )
+        .reduce((sum, ins) => sum + ins.amount, 0);
+
+      const currentBalance = Math.round((b.initialBalance + bankIncomes - bankExpenses - bankCardPayments) * 100) / 100;
 
       return {
         bankId: b.id,
         bankName: b.name,
         initialBalance: b.initialBalance,
         incomes: bankIncomes,
-        expenses: bankExpenses,
+        expenses: bankExpenses + bankCardPayments,
         currentBalance,
         color: b.color || '#38bdf8',
       };
@@ -489,7 +501,8 @@ export class FinancialService {
       expensesPaid,
       fixedPaid,
       debtPaid,
-      savingsTotal
+      savingsTotal,
+      totalCreditCardPaid
     );
 
     const projectedBalance = this.calculateProjectedBalance(
@@ -502,9 +515,9 @@ export class FinancialService {
     );
 
     // Savings & Commitment Rates
-    const totalSpentReal = expensesPaid + fixedPaid + debtPaid;
+    const totalSpentReal = expensesPaid + fixedPaid + debtPaid + totalCreditCardPaid;
     const savingsRate = this.calculateSavingsRate(incomeReceived, totalSpentReal);
-    const committedExpenses = fixedPaid + fixedPending + debtPaid + debtPending + totalCreditCardOpen;
+    const committedExpenses = expensesPaid + expensesPending + fixedPaid + fixedPending + debtPaid + debtPending + totalCreditCardOpen + totalCreditCardPaid;
     const incomeCommitmentRate = this.calculateCommitmentRate(committedExpenses, totalIncome);
 
     // Diagnostic
@@ -653,7 +666,7 @@ export class FinancialService {
       catMap.set(cat, existing);
     });
 
-    const totalSpendCategory = Array.from(catMap.values()).reduce((sum, v) => sum + (v.paid > 0 ? v.paid : v.pending), 0);
+    const totalSpendCategory = Array.from(catMap.values()).reduce((sum, v) => sum + v.paid + v.pending, 0);
     const categoryColors = [
       '#38bdf8', '#a855f7', '#f43f5e', '#10b981', '#f59e0b',
       '#6366f1', '#ec4899', '#14b8a6', '#8b5cf6', '#eab308'
@@ -662,7 +675,7 @@ export class FinancialService {
     let colorIdx = 0;
     const categoryDistribution = Array.from(catMap.entries())
       .map(([catName, data]) => {
-        const displayAmount = data.paid > 0 ? data.paid : data.pending;
+        const displayAmount = data.paid + data.pending;
         const totalBase = totalSpendCategory > 0 ? totalSpendCategory : 1;
         const pct = (displayAmount / totalBase) * 100;
         const col = categoryColors[colorIdx % categoryColors.length];
@@ -717,6 +730,8 @@ export class FinancialService {
       availableBalance,
       projectedBalance,
       creditCardInvoicesOpen: Math.round(totalCreditCardOpen * 100) / 100,
+      creditCardInvoicesPaid: Math.round(totalCreditCardPaid * 100) / 100,
+      creditCardInvoicesTotal: Math.round((totalCreditCardOpen + totalCreditCardPaid) * 100) / 100,
       savingsRate,
       commitmentRate: incomeCommitmentRate,
     };

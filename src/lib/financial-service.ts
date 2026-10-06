@@ -2,34 +2,34 @@ import { DashboardSummary, MONTHS } from '@/types';
 
 export interface RawIncome {
   id: string;
-  date: Date | string;
+  date?: Date | string;
   month: string;
   year: number;
-  type: string;
+  type?: string;
   categoryId?: string | null;
   categoryName: string;
   description: string;
   amount: number;
   status: string; // 'Recebido' | 'Não recebido' | 'Parcial' | 'Cancelado'
-  paymentMethod: string;
+  paymentMethod?: string;
   bankId?: string | null;
-  bankName: string;
+  bankName?: string;
 }
 
 export interface RawExpense {
   id: string;
-  date: Date | string;
+  date?: Date | string;
   month: string;
   year: number;
-  type: string; // 'Despesa' | 'Conta Fixa' | 'Dívida' | 'Poupança/Investimento'
+  type?: string; // 'Despesa' | 'Conta Fixa' | 'Dívida' | 'Poupança/Investimento'
   categoryId?: string | null;
   categoryName: string;
   description: string;
   amount: number;
   status: string; // 'Pago' | 'A pagar' | 'Parcial' | 'Cancelado'
-  paymentMethod: string;
+  paymentMethod?: string;
   bankId?: string | null;
-  bankName: string;
+  bankName?: string;
   recurringId?: string | null;
 }
 
@@ -54,6 +54,8 @@ export interface RawCardInstallment {
       limitTotal?: number;
       limitAvailable?: number;
       dueDay?: number;
+      bankId?: string | null;
+      bankName?: string;
     };
   };
 }
@@ -643,7 +645,7 @@ export class FinancialService {
 
     filteredExpenses.forEach((exp) => {
       const key = exp.categoryName || 'Outros';
-      const existing = catMap.get(key) || { type: exp.type, paid: 0, pending: 0 };
+      const existing = catMap.get(key) || { type: exp.type || 'Despesa', paid: 0, pending: 0 };
       if (exp.status === 'Pago') existing.paid += exp.amount;
       else existing.pending += exp.amount;
       catMap.set(key, existing);
